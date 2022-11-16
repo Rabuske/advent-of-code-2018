@@ -1,8 +1,8 @@
 
-class Node
+class Day07Node
 {
   public char Id { init; get; }
-  public List<Node> Prerequisites { set; get; } = new List<Node>();
+  public List<Day07Node> Prerequisites { set; get; } = new List<Day07Node>();
 
   public bool IsProcessed { set; get; } = false;
 
@@ -15,16 +15,16 @@ class Node
 class Day07 : IDayCommand
 {
 
-  public Dictionary<char, Node> GeneratedNodes(List<string> lines)
+  public Dictionary<char, Day07Node> GeneratedNodes(List<string> lines)
   {
-    Dictionary<char, Node> nodes = new();
+    Dictionary<char, Day07Node> nodes = new();
     foreach (var line in lines)
     {
       char step = line[5];
       char nextStep = line[36];
 
-      if (!nodes.ContainsKey(step)) nodes.Add(step, new Node() { Id = step });
-      if (!nodes.ContainsKey(nextStep)) nodes.Add(nextStep, new Node() { Id = nextStep });
+      if (!nodes.ContainsKey(step)) nodes.Add(step, new Day07Node() { Id = step });
+      if (!nodes.ContainsKey(nextStep)) nodes.Add(nextStep, new Day07Node() { Id = nextStep });
 
       nodes[nextStep].Prerequisites.Add(nodes[step]);
     }
@@ -34,10 +34,10 @@ class Day07 : IDayCommand
   public string Execute()
   {
 
-    Dictionary<char, Node> nodes = GeneratedNodes(new FileReader(7).Read().ToList());
-    List<Node> processedNodes = new List<Node>();
+    Dictionary<char, Day07Node> nodes = GeneratedNodes(new FileReader(7).Read().ToList());
+    List<Day07Node> processedNodes = new List<Day07Node>();
     int totalProcessingTime = 0;
-    List<(int, Node)> workQueue = new();
+    List<(int, Day07Node)> workQueue = new();
 
     while (processedNodes.Count < nodes.Count)
     {
