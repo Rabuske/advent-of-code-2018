@@ -1,57 +1,61 @@
-using Units = System.Collections.Generic.SortedDictionary<(int y, int x), (int hp, int attackPower, char type)>;
+using Units = System.Collections.Generic.Dictionary<(int line, int column), (int hp, int attackPower, char type)>;
 class Day15 : IDayCommand
 {
-  SortedDictionary<(int y, int x), char> deadUnits = new();
-  Units elves = new();
-  Units goblins = new();
-  SortedSet<(int y, int x)> map = new();
+  Units units = new();
+  SortedSet<(int line, int column)> map = new();
 
-  public List<(int y, int x)> FindOptimalPath((int y, int x) from, (int y, int x) to)
+  public List<((int line, int column) target, List<(int line, int column)> path)> FindOptimalPath((int line, int column) from, List<(int line, int column)> inRange)
   {
-    var alreadyVisited = new HashSet<(int y, int x)>();
-    var paths = new PriorityQueue<(int y, int x)[], int>();
-
-    var initialPaths = GetAdjacentPositions(from, true);
-
-    paths.EnqueueRange(initialPaths.Select(s => new (int y, int x)[]{s}), 1);
-
-    do
+    Queue<(int line, int column)> queue = new Queue<(int line, int column)>();
+    Dictionary<(int fromLine, int fromColumn), (int toLine, int toColumn)> vertices = new();
+    queue.Enqueue(from);
+    vertices.Add(from, (-1, -1));
+    while (queue.Count > 0)
     {
-      // There is no solution       
-      if (alreadyVisited.Count() == map.Count())
+      var currentPosition = queue.Dequeue();
+      var adjacent = GetAdjacentPositions(currentPosition, true);
+      foreach (var adj in adjacent)
       {
-        return new();
+        if (vertices.ContainsKey(adj))
+        {
+          continue;
+        }
+        queue.Enqueue(adj);
+        vertices.Add(adj, currentPosition);
       }
-      var currentPath = paths.Dequeue();
-      var currentPosition = currentPath.Last();
-      if (currentPosition == to)
-      {
-        return currentPath.ToList();
-      }
-      if (alreadyVisited.Contains(currentPosition))
-      {
-        continue;
-      }
-      alreadyVisited.Add(currentPosition);
+    }
 
-      var nextPositions = GetAdjacentPositions(currentPosition, true).Where(pos => !alreadyVisited.Contains(pos));
-      foreach (var position in nextPositions)
+    List<(int x, int y)> getPath(int destLine, int destColumn)
+    {
+      var position = (destLine, destColumn);
+      if (!vertices.ContainsKey(position)) return new();
+      List<(int line, int column)> path = new();
+      while (position != from)
       {
-        var newPath = currentPath.Append(position).ToArray();
-        paths.Enqueue(newPath, newPath.Length);
+        path.Add(position);
+        position = vertices[position];
       }
-    } while (paths.Count > 0);
-    return new();
+
+      path.Reverse();
+      return path;
+    }
+ 
+    return inRange.Select(t => (target: t, path: getPath(t.line, t.column)))
+                  .Where(t => t.path.Count > 0)
+                  .OrderBy(t => t.path.Count)
+                  .ThenBy(t => t.target)
+                  .ToList();
   }
 
-  public bool ProcessTurn(int y, int x, Units allies, Units enemies)
+  public bool ProcessTurn(int line, int column, bool stopOnElfDeath)
   {
-    var position = (y, x);
-    if (!allies.ContainsKey(position))
+    var position = (line, column);
+    if (!units.ContainsKey(position))
     {
       return false;
     }
-    var thisTurnUnit = allies[position];
+    var thisTurnUnit = units[position];
+    var enemies = units.Where(u => u.Value.type != thisTurnUnit.type).ToDictionary(u => u.Key, u => u.Value);
     if (enemies.Count() == 0) return true;
 
     // Check if there is already a target next to the unit
@@ -59,18 +63,20 @@ class Day15 : IDayCommand
     if (!thisUnitAdjacentPositions.Any(pos => enemies.ContainsKey(pos)))
     {
       // Move
-      var possiblePositionsInRange = enemies.SelectMany(t => GetAdjacentPositions(t.Key, true)).ToList();
-      var possiblePaths = possiblePositionsInRange.Select(pos => FindOptimalPath(position, pos))
-                                                  .Where(path => path.Count > 0)
-                                                  .OrderBy(path => path.Count)
-                                                  .ThenBy(path => path.Last());
-      if (possiblePaths.Count() > 0)
+      var positionsInRange = enemies.SelectMany(t => GetAdjacentPositions(t.Key, true)).ToList();
+      var bestPaths = FindOptimalPath(position, positionsInRange);
+      var bestPath = bestPaths.FirstOrDefault().path;
+
+      if (bestPath is not null)
       {
-        var path = possiblePaths.First();
-        var newPosition = path.First();
-        allies.Remove(position);
-        allies.Add(newPosition, thisTurnUnit);
+        var newPosition = bestPath[0];
+        units.Remove(position);
+        units.Add(newPosition, thisTurnUnit);
         position = newPosition;
+      }
+      else
+      {
+        return false;
       }
     }
 
@@ -78,92 +84,140 @@ class Day15 : IDayCommand
     thisUnitAdjacentPositions = GetAdjacentPositions(position, false);
     var enemiesToAttack = enemies.Where(e => thisUnitAdjacentPositions.Contains(e.Key))
                                  .OrderBy(e => e.Value.hp)
-                                 .ThenBy(e => e.Key);
+                                 .ThenBy(e => e.Key)
+                                 .ToList();
     if (enemiesToAttack.Count() > 0)
     {
       var enemy = enemiesToAttack.First();
       if (enemy.Value.hp - thisTurnUnit.attackPower <= 0)
       {
-        deadUnits.Add(enemy.Key, enemy.Value.type);
-        enemies.Remove(enemy.Key);
+        units.Remove(enemy.Key);
+        if(enemy.Value.type == 'E' && stopOnElfDeath)
+        {
+          return true;
+        }
       }
       else
       {
-        enemies[enemy.Key] = (enemy.Value.hp - thisTurnUnit.attackPower, enemy.Value.attackPower, enemy.Value.type);
+        units[enemy.Key] = (enemy.Value.hp - thisTurnUnit.attackPower, enemy.Value.attackPower, enemy.Value.type);
       }
     }
 
     return false;
   }
 
-  public List<(int y, int x)> GetAdjacentPositions((int y, int x) pos, bool filterOutUnits)
+  public List<(int line, int column)> GetAdjacentPositions((int line, int column) pos, bool filterOutUnits)
   {
-    var result = new List<(int y, int x)>();
+    var result = new List<(int line, int column)>();
 
-    if (map.Contains((pos.y, pos.x + 1))) result.Add((pos.y, pos.x + 1));
-    if (map.Contains((pos.y, pos.x - 1))) result.Add((pos.y, pos.x - 1));
-    if (map.Contains((pos.y + 1, pos.x))) result.Add((pos.y + 1, pos.x));
-    if (map.Contains((pos.y - 1, pos.x))) result.Add((pos.y - 1, pos.x));
+    if (map.Contains((pos.line, pos.column + 1))) result.Add((pos.line, pos.column + 1));
+    if (map.Contains((pos.line, pos.column - 1))) result.Add((pos.line, pos.column - 1));
+    if (map.Contains((pos.line + 1, pos.column))) result.Add((pos.line + 1, pos.column));
+    if (map.Contains((pos.line - 1, pos.column))) result.Add((pos.line - 1, pos.column));
 
     if (filterOutUnits)
     {
-      result = result.Where(position => !elves.ContainsKey(position) && !goblins.ContainsKey(position)).ToList();
+      result = result.Where(position => !units.ContainsKey(position)).ToList();
     }
+    return result.OrderBy(r => r).ToList();
+  }
 
-    return result;
+  private int PlayTheGame(bool stopOnElfDeath)
+  {
+    int fullRoundsCompleted = 0;
+    var hasFinished = false;
+    for (fullRoundsCompleted = 0; !hasFinished; fullRoundsCompleted++)
+    {
+      //Print(lines.Count(), lines[0].Length, fullRoundsCompleted);     
+      var unitsToProcess = units.OrderBy(u => u.Key).ToList();
+      foreach (var unit in unitsToProcess)
+      {
+        hasFinished = ProcessTurn(unit.Key.line, unit.Key.column, stopOnElfDeath: stopOnElfDeath);
+        if (hasFinished)
+        {
+          return fullRoundsCompleted;
+        }
+      }
+    }
+    return 0;
+  }
+
+  private void Print(int maxY, int maxX, int numberOfRounds)
+  {
+    Console.WriteLine($"--------------- Turn {numberOfRounds}");
+    for (int line = 0; line < maxY; line++)
+    {
+      for (int column = 0; column < maxX; column++)
+      {
+        var position = (line, column);
+        if (units.ContainsKey(position))
+        {
+          Console.Write(units[position].type);
+          continue;
+        }
+        if (map.Contains(position))
+        {
+          Console.Write(".");
+          continue;
+        }
+        Console.Write("#");
+      }
+      Console.WriteLine();
+    }
+    foreach (var unit in units)
+    {
+      Console.WriteLine($"{unit.Value.type}({unit.Key.line},{unit.Key.column})({unit.Value.hp})");
+    }
   }
 
   public string Execute()
   {
     var lines = new FileReader(15).Read().ToArray();
     // Just set everything in the maps
-    for (int y = 0; y < lines.Count(); y++)
+    for (int line = 0; line < lines.Count(); line++)
     {
-      for (int x = 0; x < lines[y].Length; x++)
+      for (int column = 0; column < lines[line].Length; column++)
       {
-        switch (lines[y][x])
+        switch (lines[line][column])
         {
           case '.':
-            map.Add((y, x));
+            map.Add((line, column));
             break;
           case 'G':
-            map.Add((y, x));
-            goblins.Add((y, x), (200, 3, 'G'));
+            map.Add((line, column));
+            units.Add((line, column), (200, 3, 'G'));
             break;
           case 'E':
-            map.Add((y, x));
-            elves.Add((y, x), (200, 3, 'E'));
+            map.Add((line, column));
+            units.Add((line, column), (200, 3, 'E'));
             break;
           default:
             continue;
         }
       }
     }
-
-    var hasFinished = false;
-
-    int numberOfRounds = 0;
-
-    while (!hasFinished)
-    {
-      var allUnits = elves.ToList().Concat(goblins.ToList()).OrderBy(d => d.Key);
-
-      foreach (var unit in allUnits)
-      {
-        var allies = unit.Value.type == 'G' ? goblins : elves;
-        var enemies = unit.Value.type == 'G' ? elves : goblins;
-        hasFinished = ProcessTurn(unit.Key.y, unit.Key.x, allies, enemies);
-        if (hasFinished)
-        {
-          break;
-        }
-      }
-      numberOfRounds++;
-    }
     
-    var winning = goblins.Count() > 0? goblins : elves;
-    var remainingPoints = winning.Select(u => u.Value.hp).Sum();
-    return $"Number of rounds {numberOfRounds - 1} remaining HP {remainingPoints} \n"
-           + $"Part 01: {(numberOfRounds - 1) * remainingPoints}";
-  }
+    Units originalUnits = units.ToDictionary(u => u.Key, u => u.Value);
+
+    // Part 01
+    int fullRoundsCompletedPart01 = PlayTheGame(stopOnElfDeath: false);
+    var remainingPointsPart01 = units.Select(u => u.Value.hp).Sum();
+
+    // Part 02
+    int fullRoundsCompletedPart02 = 0;
+    var currentElfPower = 4;
+    do
+    {
+      units = originalUnits.ToDictionary(u => u.Key, u => (u.Value.hp, u.Value.type == 'E'? currentElfPower : u.Value.attackPower, u.Value.type));
+      fullRoundsCompletedPart02 = PlayTheGame(true);    
+      currentElfPower++;
+    } while(units.Where(u => u.Value.type == 'E').Count() != originalUnits.Where(u => u.Value.type == 'E').Count());
+
+    var remainingPointsPart02 = units.Select(u => u.Value.hp).Sum();
+
+    return   $"Part 01: Number of rounds {fullRoundsCompletedPart01} remaining HP {remainingPointsPart01} \n"
+           + $"Part 01: {(fullRoundsCompletedPart01) * remainingPointsPart01} \n"
+           + $"Part 02: Number of rounds {fullRoundsCompletedPart02} remaining HP {remainingPointsPart02} \n"
+           + $"Part 02: {(fullRoundsCompletedPart02) * remainingPointsPart02}";
+  }  
 }
