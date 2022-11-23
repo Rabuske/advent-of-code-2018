@@ -1,13 +1,26 @@
 ﻿// See https://aka.ms/new-console-template for more information
+
 bool couldParse = false;
 IDayCommand command = new NullDay();
-do {
-    Console.Write("Enter the day you want to execute: ");
-    int day = 0;
-    couldParse = int.TryParse(Console.ReadLine(), out day);
+int day = -1;
+
+if(args.Length > 0)
+{
+    couldParse = int.TryParse(args[0], out day);    
     if(couldParse) {
         command = new DayCommandFactory().GetCommand(day);
-    }
-} while (!couldParse);
+        Console.WriteLine(command.Execute());        
+    }    
+}
+else
+{
+    do {
+        couldParse = int.TryParse(Console.ReadLine(), out day);
+        if(couldParse) {
+            command = new DayCommandFactory().GetCommand(day);
+        }
+        Console.Write("Enter the day you want to execute: ");
+    } while (!couldParse);
 
-Console.WriteLine(command.Execute());
+    Console.WriteLine(command.Execute());
+}
