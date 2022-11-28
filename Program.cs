@@ -15,11 +15,11 @@ if(args.Length > 0)
 else
 {
     do {
+        Console.Write("Enter the day you want to execute: ");
         couldParse = int.TryParse(Console.ReadLine(), out day);
         if(couldParse) {
             command = new DayCommandFactory().GetCommand(day);
         }
-        Console.Write("Enter the day you want to execute: ");
     } while (!couldParse);
 
     Console.WriteLine(command.Execute());
