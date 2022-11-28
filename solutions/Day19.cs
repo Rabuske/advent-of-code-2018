@@ -3,26 +3,23 @@ class Day19 : IDayCommand
   public string Execute()
   {
     var lines = new FileReader(19).Read().ToList();
-    var instructionPointerRegisterIndex = int.Parse(lines[0].Split(" ")[1]);
-    var instructionPointer = 0;
-    var registers = Enumerable.Repeat((long)0, 6).ToArray();
     var instructions = lines.Skip(1).Select(l => {
       var elements = l.Split(" ");
       return (name: elements[0], a: long.Parse(elements[1]), b: long.Parse(elements[2]), c: long.Parse(elements[3]));
     }).ToList();
-    var operations = OperationBuilder.GetOperationsLong();
+
+    var program = new OperationProgram(instructions)
+    {
+      IndexOfInstructionPointer = int.Parse(lines[0].Split(" ")[1]),
+    };
+
 
     // Part 01
-    while(instructionPointer >= 0 && instructionPointer < instructions.Count)
+    while(program.InstructionPointer >= 0 && program.InstructionPointer < instructions.Count)
     {
-      var instruction = instructions[instructionPointer];
-      var operation = operations[instruction.name];
-      registers[instructionPointerRegisterIndex] = instructionPointer; 
-      operation(registers, instruction.a, instruction.b, instruction.c);
-      instructionPointer = (int) registers[instructionPointerRegisterIndex];
-      instructionPointer++;
+      program.ExecuteCycle();
     }
-    var part01Register0 = registers[0];
+    var part01Register0 = program.Registers[0];
 
     // Part 02
     /*registers = Enumerable.Repeat((long)0, 6).ToArray();

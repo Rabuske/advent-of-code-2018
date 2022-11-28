@@ -1,8 +1,11 @@
+using OperationLong = System.Collections.Generic.Dictionary<string, System.Action<long[], long, long, long>>;
+using OperationInt = System.Collections.Generic.Dictionary<string, System.Action<int[], int, int, int>>;
+
 class OperationBuilder
 {
-  public static Dictionary<string, Action<int[], int, int, int>> GetOperations()
+  public static OperationInt GetOperations()
   {
-    return new Dictionary<string, Action<int[], int, int, int>>()
+    return new OperationInt()
     {
       {"addr", (reg, a, b, c) => { reg[c] = reg[a] + reg[b];}},
       {"addi", (reg, a, b, c) => { reg[c] = reg[a] + b; }},
@@ -23,9 +26,9 @@ class OperationBuilder
     };
   }
 
-  public static Dictionary<string, Action<long[], long, long, long>> GetOperationsLong()
+  public static OperationLong GetOperationsLong()
   {
-    return new Dictionary<string, Action<long[], long, long, long>>()
+    return new OperationLong()
     {
       {"addr", (reg, a, b, c) => { reg[c] = reg[a] + reg[b];}},
       {"addi", (reg, a, b, c) => { reg[c] = reg[a] + b; }},
