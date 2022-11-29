@@ -25,4 +25,10 @@ class OperationProgram
     InstructionPointer++;
   }
 
+  public override string ToString()
+  {
+    var nextInstruction = Instructions[InstructionPointer];
+    return $" Next: {nextInstruction} | Registers: [{string.Join(",", Registers)}]";
+  }
+
 }
